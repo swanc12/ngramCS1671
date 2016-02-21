@@ -203,31 +203,32 @@ for line in lines:
   prev_perp = word_perplexity(test_text, all_ngrams, n, smoothed, weights)
   print(test_text)
   print(prev_perp)
-  weight1 = .5
-  weight2 = .5
+  weight1 = 30
+  weight2 = 70
   weight1up = True
   for i in range(100):
-    weights = [weight1, weight2]
+    weights = [weight1/100, weight2/100]
     new_perp = word_perplexity(test_text, all_ngrams, n, smoothed, weights)
-    if new_perp < prev_perp and not weight1up:
-      weight1 -= 0.05
-      weight2 += 0.05
-    elif new_perp > prev_perp and not weight1up:
-      weight1 += 0.05
-      weight2 -= 0.05
+    if new_perp > prev_perp and not weight1up and weight2 < 100:
+      weight1 -= 1
+      weight2 += 1
+    elif new_perp < prev_perp and not weight1up and weight1 < 100:
+      weight1 += 1
+      weight2 -= 1
       weight1up = True
-    elif new_perp < prev_perp and weight1up:
-      weight1 += 0.05
-      weight2 -= 0.05
-    else:
-      weight1 -= 0.05
-      weight2 += 0.05
+    elif new_perp > prev_perp and weight1up and weight1 < 100:
+      weight1 += 1
+      weight2 -= 1
+    elif weight2 < 100:
+      weight1 -= 1
+      weight2 += 1
       weight1up = False
-    print("Weight1: {0} weight2: {1} perp: {2}".format(
-      weight1,
-      weight2,
-      new_perp
-    ))
+    prev_perp = new_perp
+  print("Weight1: {0} weight2: {1} perp: {2}".format(
+    weight1,
+    weight2,
+    new_perp
+  ))
 
 
 
