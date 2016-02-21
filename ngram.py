@@ -100,7 +100,7 @@ def interpolate(in_str, ngram_list, weights):
       pass
 
     curr_set += 1
-  if(prob == 0):
+  if(prob <= 0):
     return 0
   return math.log(prob, 2)
 
@@ -147,6 +147,124 @@ def replace_unk_ngram(unigram, in_str):
 
   return output
 
+def adjusted_weights(lines, all_ngrams, n, verbose=False):
+  weights = []
+  if(n == 2):
+    weights = [.8, .2]
+  elif(n == 3):
+    return(adjusted_weights_trigram(lines, all_ngrams, verbose))
+
+  weights_list = []
+  for line in lines:
+    prev_perp = word_perplexity(line, all_ngrams, n, smoothed, weights)
+    weight1 = 30
+    weight2 = 70
+    weight1up = True
+    new_perp = prev_perp
+
+    if(verbose):
+      print(line)
+      print("Perp before adjusting weights: ")
+      print(prev_perp)
+    for i in range(100):
+      weights = [weight1/100, weight2/100]
+      new_perp = word_perplexity(line, all_ngrams, n, True, weights)
+      if new_perp > prev_perp and not weight1up and weight2 < 100:
+        weight1 -= 1
+        weight2 += 1
+      elif new_perp < prev_perp and not weight1up and weight1 < 100:
+        weight1 += 1
+        weight2 -= 1
+        weight1up = True
+      elif new_perp > prev_perp and weight1up and weight1 < 100:
+        weight1 += 1
+        weight2 -= 1
+      elif weight2 < 100:
+        weight1 -= 1
+        weight2 += 1
+        weight1up = False
+      prev_perp = new_perp
+
+    if(verbose):
+      print("Unigram weight: {0} Bigram weight: {1}".format(
+        weight1,
+        weight2,
+      print(new_perp)
+      ))
+    weights_list.append((weight1/100, weight2/100))
+
+  average_weights = []
+  if(len(weights_list) > 0):
+    weight1_avg = 0
+    weight2_avg = 0
+    for i in weights_list:
+      weight1_avg += i[0]
+      weight2_avg += i[1]
+    weight1_avg = weight1_avg/len(weights_list)
+    weight2_avg = weight2_avg/len(weights_list)
+    average_weights.append(weight1_avg)
+    average_weights.append(weight2_avg)
+  return average_weights
+
+def adjusted_weights_trigram(lines, all_ngrams, verbose):
+  weights_list = []
+  for line in lines:
+    prev_perp = word_perplexity(line, all_ngrams, n, smoothed, [.2, .2, .6])
+    weight1 = 20
+    weight2 = 20
+    weight3 = 60
+    weight1up = True
+    for i in range(33):
+      if(weight2 > 0 and weight3 > 0):
+        weight1 = weight1 + 1
+        weight2 = weight2 - .5
+        weight3 = weight3 - .5
+      new_perp = word_perplexity(
+          line,
+          all_ngrams,
+          n,
+          smoothed,
+          [weight1/100, weight2/100, weight3/100]
+      )
+      if new_perp > prev_perp:
+        continue
+      else:
+        break
+
+    for i in range(33):
+      if(weight1 > 0 and weight3 > 0):
+        weight1 = weight1 - .5
+        weight2 = weight2 + 1
+        weight3 = weight3 - .5
+      new_perp = word_perplexity(
+          line,
+          all_ngrams,
+          n,
+          smoothed,
+          [weight1/100, weight2/100, weight3/100]
+      )
+      if new_perp > prev_perp:
+        continue
+      else:
+        break
+
+    for i in range(33):
+      if(weight1 > 0 and weight2 > 0):
+        weight1 = weight1 - .5
+        weight2 = weight2 - .5
+        weight3 = weight3 + 1
+      new_perp = word_perplexity(
+          line,
+          all_ngrams,
+          n,
+          smoothed,
+          [weight1/100, weight2/100, weight3/100]
+      )
+      if new_perp > prev_perp:
+        continue
+      else:
+        break
+    return [weight1/100, weight2/100, weight3/100]
 
 ##Main##
 parser = argparse.ArgumentParser()
@@ -175,7 +293,11 @@ with open(args.trainfile, 'r') as trainfile:
     temp_parsed = line.strip().replace('.', ' </s>')
     temp_parsed = temp_parsed.replace(',', ' ,')
     temp_parsed = " <s> " + temp_parsed
-    temp_parsed = temp_parsed
+    temp_parsed = temp_parsed.replace("*", '')
+    temp_parsed = temp_parsed.replace("(", '')
+    temp_parsed = temp_parsed.replace(")", '')
+    temp_parsed = temp_parsed.replace("[", '')
+    temp_parsed = temp_parsed.replace("]", '')
     parsed = parsed + temp_parsed
 
 parsed = replace_unknowns(parsed, 1)
@@ -188,47 +310,35 @@ for i in range(1, n+1):
 lines = []
 with open(args.devfile, 'r') as devfile:
   for line in devfile:
-    lines.append(line)
+    temp_parsed = line.strip()
+    temp_parsed = temp_parsed.replace("*", '')
+    temp_parsed = temp_parsed.replace("(", '')
+    temp_parsed = temp_parsed.replace(")", '')
+    temp_parsed = temp_parsed.replace("[", '')
+    temp_parsed = temp_parsed.replace("]", '')
+    lines.append(replace_unk_ngram(all_ngrams[0], temp_parsed))
 
-print("~~~~~~~~~~~~perplexity test~~~~~~~~~~~~~")
-test_text = ""
-weights = []
-if(n == 2):
-  weights = [.8, .2]
-elif(n == 3):
-  weights = [0, 0, 1]
+new_weights = []
+if(smoothed):
+  print("~~Adjusted weights~~")
+  print(adjusted_weights(lines, all_ngrams, n))
+  new_weights = adjusted_weights(lines, all_ngrams, n)
+
+lines = []
+with open(args.testfile, 'r') as testfile:
+  for line in testfile:
+    temp_parsed = line.strip()
+    temp_parsed = temp_parsed.replace("*", '')
+    temp_parsed = temp_parsed.replace("(", '')
+    temp_parsed = temp_parsed.replace(")", '')
+    temp_parsed = temp_parsed.replace("[", '')
+    temp_parsed = temp_parsed.replace("]", '')
+    lines.append(replace_unk_ngram(all_ngrams[0], temp_parsed))
+
+print("Per word perplexity of test file lines: ")
+if(smoothed):
+  print(new_weights)
 
 for line in lines:
-  test_text = replace_unk_ngram(all_ngrams[0], line.strip())
-  prev_perp = word_perplexity(test_text, all_ngrams, n, smoothed, weights)
-  print(test_text)
-  print(prev_perp)
-  weight1 = 30
-  weight2 = 70
-  weight1up = True
-  for i in range(100):
-    weights = [weight1/100, weight2/100]
-    new_perp = word_perplexity(test_text, all_ngrams, n, smoothed, weights)
-    if new_perp > prev_perp and not weight1up and weight2 < 100:
-      weight1 -= 1
-      weight2 += 1
-    elif new_perp < prev_perp and not weight1up and weight1 < 100:
-      weight1 += 1
-      weight2 -= 1
-      weight1up = True
-    elif new_perp > prev_perp and weight1up and weight1 < 100:
-      weight1 += 1
-      weight2 -= 1
-    elif weight2 < 100:
-      weight1 -= 1
-      weight2 += 1
-      weight1up = False
-    prev_perp = new_perp
-  print("Weight1: {0} weight2: {1} perp: {2}".format(
-    weight1,
-    weight2,
-    new_perp
-  ))
-
-
-
+  print(line)
+  print(word_perplexity(line, all_ngrams, n, smoothed, new_weights))
