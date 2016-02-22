@@ -320,14 +320,15 @@ with open(args.devfile, 'r') as devfile:
 
 new_weights = []
 if(smoothed):
-  print("~~Adjusted weights~~")
-  print(adjusted_weights(lines, all_ngrams, n))
   new_weights = adjusted_weights(lines, all_ngrams, n)
 
+original_lines = []
 lines = []
 with open(args.testfile, 'r') as testfile:
   for line in testfile:
-    temp_parsed = line.strip()
+    original_lines.append(line)
+    temp_parsed = line.strip().replace('.', ' </s>')
+    temp_parsed = " <s> " + temp_parsed
     temp_parsed = temp_parsed.replace("*", '')
     temp_parsed = temp_parsed.replace("(", '')
     temp_parsed = temp_parsed.replace(")", '')
@@ -335,10 +336,9 @@ with open(args.testfile, 'r') as testfile:
     temp_parsed = temp_parsed.replace("]", '')
     lines.append(replace_unk_ngram(all_ngrams[0], temp_parsed))
 
-print("Per word perplexity of test file lines: ")
-if(smoothed):
-  print(new_weights)
 
-for line in lines:
-  print(line)
-  print(word_perplexity(line, all_ngrams, n, smoothed, new_weights))
+for org_line, line in zip(original_lines, lines):
+  print("{0}\t{1}".format(
+    org_line.strip(),
+    word_perplexity(line, all_ngrams, n, smoothed, new_weights)
+  ))
