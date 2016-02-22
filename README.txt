@@ -1,3 +1,7 @@
+~~NOTE~~
+Perplexity is scored as negative per word entropy, as this apperantely is how
+the tests are scored in the sample scoring script for part 3.
+
 Program usage:
 
   python ngram.py <ngram> <training_file> <dev_file> <test_file>
